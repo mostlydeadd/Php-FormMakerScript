@@ -1,124 +1,69 @@
 <?php
 namespace framework\captcha;
-use framework\captcha\exception\CaptchaException;
+
 use framework\session\Session;
-use framework\request\Request;
 
 /**
- * Captcha
- * create easy captcha image 
- *
- * @use Captcha::create() create new captcha image
- * @use Captcha::validate() validate captcha
- * @use Captcha::font set font path
- * @use Captcha::width set image width
- * @use Captcha::height set image height
- * @use Captcha::text set captcha text
- *
- * @author		saeed johari <foreach@live.com>
- * @package		captcha
- * @since		1.0
- * @copyright	(c) 2014 all rights reserved
+ * Session-backed arithmetic CAPTCHA. Does not require GD or font files.
  */
 class Captcha
 {
-	/**
-	 * captcha session name
-	 */
-	const SESSION_NAME = 'captcha';
-	
-	/**
-	 * captcha font path
-	 *
-	 * @access public
-	 * @var string
-	 */
-	public $font;
-	
-	/**
-	 * captcha image with
-	 *
-	 * @access public
-	 * @var integer
-	 */
-	public $width = 60;
-	
-	/**
-	 * captcha image height
-	 *
-	 * @access public
-	 * @var integer
-	 */
-	public $height = 30;
-	
-	/**
-	 * captcha text
-	 *
-	 * @access public
-	 * @var integer|string
-	 */
-	public $text = 999;
-	
-	/**
-	 * class constructor
-	 *
-	 * initialize captcha configs
-	 * @param array $config, configs
-	 */
-	public function __construct($config = [])
-	{
-		if(!extension_loaded('gd'))
-			throw new CaptchaException('GD extension not loaded');
-		if(isset($config['width']))
-			$this->width = $config['width'];
-		if(isset($config['height']))
-			$this->height = $config['height'];
-		if(isset($config['text']))
-			$this->text = $config['text'];
-		if(isset($config['font']))
-			$this->font = $config['font'];
-		else
-			$this->font = FRAMEWORK.'captcha/SpicyRice.ttf';
-	}
-	
-	/**
-	 * create captcha image and set to session
-	 *
-	 * @access public
-	 * @return void
-	 */
-	public function create()
-	{
-		Session::instance()->open();
-		Session::instance()->set(self::SESSION_NAME,$this->text);
-		
-		$img = imagecreate($this->width,$this->height);
-		$background = imagecolorallocate($img,255,255,255);
-		$color = imagecolorallocate($img,0,0,140);
+    const SESSION_NAME = 'captcha';
 
-              for($i=0; $i<=8; $i++) {
-                     imagerectangle($img,rand(0,$this->width),rand(0,$this->height),rand(0,$this->width),rand(0,$this->height),$color);
-              }
+    /**
+     * Create a fresh arithmetic question and store its answer in the session.
+     *
+     * @return string Human-readable question for the login form.
+     */
+    public function createQuestion()
+    {
+        Session::instance()->open();
 
-		imagettftext($img,rand(20,$this->height/2),rand(-2,2),$this->width/6,$this->height/1.5,$color,$this->font,$this->text);
+        $a = random_int(2, 20);
+        $b = random_int(1, 20);
+        $operator = random_int(0, 1) ? '+' : '-';
 
-		header('Content-Type:image/png');
-		imagepng($img);
-	}
-	
-	/**
-	 * validate captcha
-	 *
-	 * @param string $captcha, captcha value
-	 * @access public
-	 * @return boolean
-	 */
-	public function validate($captcha)
-	{
-		Session::instance()->open();
-		if($captcha == (string)Session::instance()->get(self::SESSION_NAME))
-			return true;
-		else
-			return false;
-	}
+        if ($operator === '-' && $b > $a) {
+            $tmp = $a;
+            $a = $b;
+            $b = $tmp;
+        }
+
+        $answer = ($operator === '+') ? $a + $b : $a - $b;
+        Session::instance()->set(self::SESSION_NAME, (string) $answer);
+
+        return $a . ' ' . $operator . ' ' . $b . ' = ?';
+    }
+
+    /**
+     * Backwards-compatible endpoint behavior: print a text question instead
+     * of attempting to generate a GD image.
+     *
+     * @return void
+     */
+    public function create()
+    {
+        $question = $this->createQuestion();
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo $question;
+    }
+
+    /**
+     * Validate the submitted answer and invalidate it after one attempt.
+     *
+     * @param string $captcha
+     * @return bool
+     */
+    public function validate($captcha)
+    {
+        Session::instance()->open();
+        $expected = Session::instance()->get(self::SESSION_NAME);
+        Session::instance()->delete(self::SESSION_NAME);
+
+        if (!is_scalar($expected) || !is_scalar($captcha)) {
+            return false;
+        }
+
+        return hash_equals((string) $expected, trim((string) $captcha));
+    }
 }
