@@ -1,7 +1,7 @@
 <?php
-use framework\\helpers\\Html;
-use framework\\security\\Csrf;
-use framework\\captcha\\Captcha;
+use framework\helpers\Html;
+use framework\security\Csrf;
+use framework\captcha\Captcha;
 $this->title .= ' - ورود';
 $captcha = new Captcha();
 $captchaQuestion = $captcha->createQuestion();
@@ -34,7 +34,7 @@ $captchaQuestion = $captcha->createQuestion();
                         <button class="btn my-btn"><span class="glyphicon glyphicon-chevron-left"></span> ورود</button>
                     </div>
                 </div>
-                <?php foreach (framework\\session\\Session::instance()->getFlashes() as $key => $message) { ?>
+                <?php foreach (framework\session\Session::instance()->getFlashes() as $key => $message) { ?>
                     <div class="alert alert-<?php echo htmlspecialchars($key, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8'); ?></div>
                 <?php } ?>
             </div>
